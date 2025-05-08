@@ -1,85 +1,58 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, StackingRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
 from sklearn.metrics import mean_squared_error
-import xgboost as xgb
 
-# Load data
+# Title
+st.title("California House Price Prediction")
+
+# Load dataset from CSV
 @st.cache_data
 def load_data():
-    data = fetch_california_housing(as_frame=True)
-    df = data.frame
+    url = "https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.csv"
+    df = pd.read_csv(url)
     return df
 
-# Preprocess and train models
-@st.cache_data
-def train_models(df):
-    X = df.drop("MedHouseVal", axis=1)
-    y = df["MedHouseVal"]
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+df = load_data()
 
-    # Create pipelines
-    base_models = [
-        ('rf', RandomForestRegressor(n_estimators=100, random_state=42)),
-        ('gb', GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42)),
-        ('xgb', xgb.XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42))
-    ]
+# Show raw data
+if st.checkbox("Show Raw Data"):
+    st.subheader("Raw Dataset")
+    st.write(df)
 
-    # Stacking Regressor
-    stacking_model = StackingRegressor(
-        estimators=base_models,
-        final_estimator=LinearRegression()
-    )
+# Preprocessing
+df = df.dropna()  # Remove rows with missing values
+df = df.drop("ocean_proximity", axis=1)  # Drop non-numeric column for simplicity
 
-    model_pipeline = Pipeline([
-        ("scaler", StandardScaler()),
-        ("stacking", stacking_model)
-    ])
+# Split features and target
+X = df.drop("median_house_value", axis=1)
+y = df["median_house_value"]
 
-    model_pipeline.fit(X_train, y_train)
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    y_pred = model_pipeline.predict(X_test)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+# Model training
+model = LinearRegression()
+model.fit(X_train, y_train)
 
-    return model_pipeline, rmse, X.columns.tolist()
+# Prediction
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
 
-# Main UI
-def main():
-    st.title("🏡 Smart House Price Forecaster")
-    st.markdown("Using advanced regression models (Random Forest, XGBoost, Stacking)")
+# Output
+st.subheader("Model Performance")
+st.write(f"Root Mean Squared Error: {rmse:,.2f}")
 
-    df = load_data()
-    model, rmse, feature_names = train_models(df)
+# Predict on user input
+st.subheader("Try it Yourself: Predict House Value")
+user_input = {}
+for col in X.columns:
+    val = st.number_input(f"Input value for {col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
+    user_input[col] = val
 
-    st.write("### Model RMSE on test data:", round(rmse, 3))
-
-    st.sidebar.header("Enter House Features")
-
-    input_data = {}
-    for feature in feature_names:
-        val = st.sidebar.slider(
-            label=f"{feature}",
-            min_value=float(df[feature].min()),
-            max_value=float(df[feature].max()),
-            value=float(df[feature].mean())
-        )
-        input_data[feature] = val
-
-    input_df = pd.DataFrame([input_data])
-
-    if st.button("Predict House Price"):
-        prediction = model.predict(input_df)[0]
-        st.success(f"🏠 Estimated House Price: ${prediction * 100000:.2f}")
-
-    if st.checkbox("Show Sample Data"):
-        st.write(df.head())
-
-if __name__ == "__main__":
-    main()
+input_df = pd.DataFrame([user_input])
+prediction = model.predict(input_df)[0]
+st.write(f"**Predicted Median House Value:** ${prediction:,.2f}")
