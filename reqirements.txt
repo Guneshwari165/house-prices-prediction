@@ -1,5 +1,5 @@
-streamlit>=1.32
-pandas>=1.5
-numpy>=1.21
-scikit-learn>=1.0
-python_version >= 3.8
+streamlit
+pandas
+numpy
+scikit-learn
+python_version
